@@ -3,25 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="免费在线电子发票合并打印工具。支持PDF和OFD格式发票，批量上传、自定义排版、A4纸打印。本地处理，无需上传服务器，隐私安全。">
+    <meta name="keywords" content="发票打印,电子发票,PDF合并,OFD转换,发票排版,在线打印,免费工具">
+    <meta name="author" content="itfarmer">
+    <meta name="theme-color" content="#1677ff">
     <meta name="google-adsense-account" content="ca-pub-1437636891737818">
-    <title>电子发票打印</title>
+
+    <!-- SEO Meta Tags -->
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+    <meta name="googlebot" content="index, follow">
+    <meta name="baiduspider" content="index, follow">
+    <link rel="canonical" href="https://fapiao.itfarmer.com/">
+
+    <!-- Open Graph Tags for Social Sharing -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="电子发票合并打印 - 免费在线工具">
+    <meta property="og:description" content="支持PDF和OFD格式的电子发票合并打印工具。自定义排版、批量处理、本地隐私处理。">
+    <meta property="og:url" content="https://fapiao.itfarmer.com/">
+    <meta property="og:site_name" content="电子发票打印">
+
+    <!-- Twitter Card Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="电子发票合并打印 - 免费在线工具">
+    <meta name="twitter:description" content="支持PDF和OFD格式的电子发票合并打印工具。自定义排版、批量处理、本地隐私处理。">
+
+    <!-- Additional SEO -->
+    <meta name="language" content="zh-CN">
+    <meta name="revisit-after" content="7 days">
+    <meta name="distribution" content="global">
+
+    <title>电子发票合并打印 - 免费在线PDF/OFD发票排版打印工具</title>
     <link rel="stylesheet" href="style.css">
+
+    <!-- Preload critical resources -->
+    <link rel="preload" as="script" href="lib/pdf.min.js">
+    <link rel="preload" as="script" href="app.js">
+
     <!-- PDF.js -->
     <script src="lib/pdf.min.js"></script>
     <!-- pdf-lib for generating PDFs -->
     <script src="lib/pdf-lib.min.js"></script>
     <!-- JSZip for OFD parsing -->
     <script src="lib/jszip.min.js"></script>
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "电子发票合并打印",
+        "description": "免费在线电子发票合并打印工具。支持PDF和OFD格式发票，批量上传、自定义排版、A4纸打印。本地处理，无需上传服务器。",
+        "url": "https://fapiao.itfarmer.com/",
+        "applicationCategory": "Productivity",
+        "operatingSystem": "Web",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "CNY"
+        },
+        "author": {
+            "@type": "Organization",
+            "name": "itfarmer"
+        }
+    }
+    </script>
+
+    <!-- Google Analytics (if needed, replace with your tracking ID) -->
+    <!-- <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'GA_MEASUREMENT_ID');
+    </script> -->
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>电子发票合并打印</h1>
-            <p class="subtitle">批量上传PDF/OFD格式发票文件，选择排版方式，合并到A4纸上打印</p>
+        <header role="banner">
+            <h1>电子发票合并打印工具</h1>
+            <p class="subtitle">免费在线批量合并PDF/OFD格式发票，自定义排版，一键打印或下载</p>
         </header>
 
         <!-- 步骤指示器 -->
-        <div class="steps">
+        <nav class="steps" aria-label="工作流程步骤">
             <div class="step active" data-step="1">
                 <span class="step-number">1</span>
                 <span class="step-text">上传发票</span>
@@ -31,12 +95,12 @@
                 <span class="step-number">2</span>
                 <span class="step-text">打印下载</span>
             </div>
-        </div>
+        </nav>
 
         <!-- 步骤1：上传文件 -->
-        <div class="panel step-panel" id="step1-panel">
-            <div class="upload-area" id="upload-area">
-                <div class="upload-icon">
+        <section class="panel step-panel" id="step1-panel" aria-label="第一步：上传发票文件">
+            <div class="upload-area" id="upload-area" role="button" tabindex="0" aria-label="点击或拖动上传PDF/OFD发票文件">
+                <div class="upload-icon" aria-hidden="true">
                     <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                         <polyline points="14 2 14 8 20 8"></polyline>
@@ -47,14 +111,14 @@
                 </div>
                 <p class="upload-text">点击或拖动选择PDF/OFD格式发票文件（可多选）</p>
                 <p class="upload-hint">支持 PDF、OFD 格式</p>
-                <input type="file" id="file-input" multiple accept=".pdf,.ofd" hidden>
+                <input type="file" id="file-input" multiple accept=".pdf,.ofd" hidden aria-label="选择发票文件">
             </div>
 
             <!-- 已上传文件列表 -->
-            <div class="file-list" id="file-list" style="display: none;">
+            <div class="file-list" id="file-list" style="display: none;" aria-live="polite">
                 <div class="file-list-header">
-                    <h3>已上传文件 (<span id="file-count">0</span>)</h3>
-                    <button class="btn btn-text" id="clear-all-btn">清空全部</button>
+                    <h2>已上传文件 (<span id="file-count">0</span>)</h2>
+                    <button class="btn btn-text" id="clear-all-btn" aria-label="清空所有已上传的文件">清空全部</button>
                 </div>
                 <div class="file-items" id="file-items"></div>
             </div>
@@ -62,18 +126,18 @@
             <div class="panel-actions">
                 <button class="btn btn-primary" id="next-step1" disabled>下一步：设置排版</button>
             </div>
-        </div>
+        </section>
 
         <!-- 步骤2：设置排版 -->
-        <div class="panel step-panel" id="step2-panel" style="display: none;">
+        <section class="panel step-panel" id="step2-panel" style="display: none;" aria-label="第二步：排版设置和预览">
             <div class="settings-grid">
                 <!-- 排版设置 -->
                 <div class="setting-group">
-                    <h3>排版设置</h3>
-                    
+                    <h2>排版设置</h2>
+
                     <div class="setting-item">
-                        <label>打印方向</label>
-                        <div class="radio-group">
+                        <label for="orientation-group">打印方向</label>
+                        <div class="radio-group" id="orientation-group">
                             <label class="radio-label">
                                 <input type="radio" name="orientation" value="portrait" checked>
                                 <span>纵向</span>
@@ -86,47 +150,47 @@
                     </div>
 
                     <div class="setting-item">
-                        <label>每页行数</label>
-                        <input type="number" id="rows" value="2" min="1" max="6" class="input-number">
+                        <label for="rows">每页行数</label>
+                        <input type="number" id="rows" value="2" min="1" max="6" class="input-number" aria-label="设置每页显示的行数">
                     </div>
 
                     <div class="setting-item">
-                        <label>每页列数</label>
-                        <input type="number" id="cols" value="1" min="1" max="4" class="input-number">
+                        <label for="cols">每页列数</label>
+                        <input type="number" id="cols" value="1" min="1" max="4" class="input-number" aria-label="设置每页显示的列数">
                     </div>
 
                     <div class="setting-item">
-                        <label>页边距 (mm)</label>
-                        <input type="number" id="margin" value="10" min="0" max="50" class="input-number">
+                        <label for="margin">页边距 (mm)</label>
+                        <input type="number" id="margin" value="10" min="0" max="50" class="input-number" aria-label="设置页面边距">
                     </div>
 
                     <div class="setting-item">
-                        <label>发票间距 (mm)</label>
-                        <input type="number" id="gap" value="5" min="0" max="30" class="input-number">
+                        <label for="gap">发票间距 (mm)</label>
+                        <input type="number" id="gap" value="5" min="0" max="30" class="input-number" aria-label="设置发票之间的间距">
                     </div>
                 </div>
 
                 <!-- 辅助选项 -->
                 <div class="setting-group">
-                    <h3>辅助选项</h3>
-                    
+                    <h2>辅助选项</h2>
+
                     <div class="setting-item">
                         <label class="checkbox-label">
-                            <input type="checkbox" id="show-border">
+                            <input type="checkbox" id="show-border" aria-label="显示发票边框">
                             <span>显示边框</span>
                         </label>
                     </div>
 
                     <div class="setting-item">
                         <label class="checkbox-label">
-                            <input type="checkbox" id="show-cut-line">
+                            <input type="checkbox" id="show-cut-line" aria-label="显示裁剪虚线">
                             <span>显示裁剪虚线</span>
                         </label>
                     </div>
 
                     <div class="setting-item">
                         <label class="checkbox-label">
-                            <input type="checkbox" id="show-page-number">
+                            <input type="checkbox" id="show-page-number" aria-label="显示页码">
                             <span>显示页码</span>
                         </label>
                     </div>
@@ -134,17 +198,17 @@
 
                 <!-- 预览 -->
                 <div class="setting-group preview-group">
-                    <h3>排版预览</h3>
+                    <h2>排版预览</h2>
                     <div class="preview-wrapper">
-                        <div class="preview-nav">
-                            <button class="btn btn-small" id="prev-preview-page" disabled>&lt; 上一页</button>
-                            <span class="preview-page-info">第 <span id="current-preview-page">1</span> / <span id="total-preview-pages">1</span> 页</span>
-                            <button class="btn btn-small" id="next-preview-page" disabled>下一页 &gt;</button>
+                        <div class="preview-nav" role="toolbar" aria-label="预览页面导航">
+                            <button class="btn btn-small" id="prev-preview-page" disabled aria-label="查看上一页预览">&lt; 上一页</button>
+                            <span class="preview-page-info" aria-live="polite">第 <span id="current-preview-page">1</span> / <span id="total-preview-pages">1</span> 页</span>
+                            <button class="btn btn-small" id="next-preview-page" disabled aria-label="查看下一页预览">下一页 &gt;</button>
                         </div>
                         <div class="preview-container" id="preview-container">
-                            <canvas id="preview-canvas"></canvas>
-                            <div class="preview-loading" id="preview-loading" style="display: none;">
-                                <div class="spinner-small"></div>
+                            <canvas id="preview-canvas" aria-label="排版预览画布"></canvas>
+                            <div class="preview-loading" id="preview-loading" style="display: none;" aria-live="polite">
+                                <div class="spinner-small" aria-hidden="true"></div>
                                 <span>生成预览...</span>
                             </div>
                         </div>
@@ -161,11 +225,11 @@
                 <button class="btn btn-primary" id="printfp">打印</button>
                 <button class="btn btn-primary" id="next-step2">下载</button>
             </div>
-        </div>
+        </section>
     </div>
 
-    <footer>
-        <p>本地处理，文件不会上传到服务器</p>
+    <footer role="contentinfo">
+        <p>✓ 本地处理，文件不会上传到服务器 | 隐私安全 | 完全免费</p>
     </footer>
 
     <script src="app.js"></script>
