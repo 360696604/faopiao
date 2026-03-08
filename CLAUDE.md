@@ -6,6 +6,8 @@
 
 发票合并打印工具 — 纯客户端的发票合并打印应用。用户上传 PDF/OFD 发票文件，在 A4 页面上排版，然后预览、下载或打印合并结果。所有处理均在浏览器端完成，无需服务器。
 
+**部署信息**：已部署在 fapiao.utoolbox.net，SEO 已针对该域名优化。
+
 ## 技术栈
 
 - 纯 HTML5 + CSS3 + 原生 JavaScript（ES6+，async/await）
@@ -37,10 +39,23 @@ npx http-server -p 8000
 - **输出**：pdf-lib 生成合并 PDF → 通过隐藏 iframe 打印或通过 Blob URL 下载
 - **DOM 操作**：直接使用 `getElementById`/`querySelector`，`elements` 对象缓存 DOM 引用
 
-**关键常量**：A4 = 595×842pt，mm 转 pt = 2.83465，PDF 渲染缩放 = 1.5x。
+**关键常量**：A4 = 595×842pt，mm 转 pt = 2.83465，PDF 渲染缩放 = 3.0x（提高分辨率防止模糊）。
 
 ## 代码规范
 
 - 界面和文档均为中文（zh-CN）
 - Git 提交信息使用中文或简短英文，无固定提交格式
 - 未配置 lint 或格式化工具 — 遵循现有代码风格（2 空格缩进，JS 中使用单引号）
+
+## SEO 优化
+
+已针对域名 fapiao.utoolbox.net 进行 SEO 优化：
+
+- **Meta 标签**：完整的 description、keywords、author、robots、canonical 等
+- **结构化数据**：Schema.org WebApplication 结构化数据
+- **社交分享**：Open Graph 和 Twitter Card 标签
+- **技术 SEO**：robots.txt、sitemap.xml、规范链接
+- **移动友好**：响应式设计，移动端适配
+- **性能优化**：关键资源预加载，本地化第三方库
+
+所有 URL 和 author 信息已更新为 utoolbox.net 相关标识。

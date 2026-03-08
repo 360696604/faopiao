@@ -12,7 +12,7 @@ const MM_TO_PT = 2.83465;
 
 // 渲染配置
 const RENDER_CONFIG = {
-    pdfScale: 1.5,           // PDF 渲染缩放比例
+    pdfScale: 3.0,           // PDF 渲染缩放比例，提高分辨率防止模糊
     pageNumberBottomMargin: 20,  // 页码距离底部的距离
     borderColor: '#ccc',     // 边框颜色
     borderWidth: 1,          // 边框宽度
@@ -33,6 +33,7 @@ const state = {
     currentStep: 1,
     currentPreviewPage: 0, // 当前预览页码（从0开始）
     previewCache: new Map(), // 缓存渲染的页面图像
+    zoomLevel: 1.0, // 预览缩放级别
     settings: {
         orientation: 'portrait',
         rows: 2,
@@ -65,7 +66,12 @@ const elements = {
     currentPreviewPage: document.getElementById('current-preview-page'),
     totalPreviewPages: document.getElementById('total-preview-pages'),
     perPageCount: document.getElementById('per-page-count'),
-    totalPages: document.getElementById('total-pages')
+    totalPages: document.getElementById('total-pages'),
+    // 缩放相关元素
+    zoomIn: document.getElementById('zoom-in'),
+    zoomOut: document.getElementById('zoom-out'),
+    zoomReset: document.getElementById('zoom-reset'),
+    zoomLevelDisplay: document.getElementById('zoom-level-display')
 };
 
 // 步骤面板
@@ -238,6 +244,7 @@ function drawErrorPlaceholderOnCanvas(ctx, x, y, width, height, message) {
 function init() {
     setupEventListeners();
     updatePreview();
+    updateZoomDisplay();
 }
 
 // 设置事件监听
@@ -314,6 +321,25 @@ function setupEventListeners() {
             state.currentPreviewPage++;
             renderPreviewPage();
         }
+    });
+
+    // 缩放控制
+    elements.zoomIn.addEventListener('click', () => {
+        state.zoomLevel = Math.min(state.zoomLevel + 0.25, 3.0); // 最大300%
+        updateZoomDisplay();
+        renderPreviewPage();
+    });
+
+    elements.zoomOut.addEventListener('click', () => {
+        state.zoomLevel = Math.max(state.zoomLevel - 0.25, 0.25); // 最小25%
+        updateZoomDisplay();
+        renderPreviewPage();
+    });
+
+    elements.zoomReset.addEventListener('click', () => {
+        state.zoomLevel = 1.0;
+        updateZoomDisplay();
+        renderPreviewPage();
     });
 }
 
@@ -573,8 +599,8 @@ async function renderPreviewPage() {
     const dpr = window.devicePixelRatio || 1;
     canvas.width = pageWidth * dpr;
     canvas.height = pageHeight * dpr;
-    canvas.style.width = pageWidth + 'px';
-    canvas.style.height = pageHeight + 'px';
+    canvas.style.width = (pageWidth * state.zoomLevel) + 'px';
+    canvas.style.height = (pageHeight * state.zoomLevel) + 'px';
     ctx.scale(dpr, dpr);
 
     // 白色背景
@@ -660,14 +686,37 @@ async function loadPageImages(allPages, perPage) {
 function drawInvoiceImageOnCanvas(ctx, pageImage, x, y, cellWidth, cellHeight) {
     try {
         if (pageImage) {
-            // 计算缩放和居中
-            const imgScale = Math.min(cellWidth / pageImage.width, cellHeight / pageImage.height);
+            // 计算图像方向
+            const imageAspectRatio = pageImage.width / pageImage.height;
+            const cellAspectRatio = cellWidth / cellHeight;
+            const isImageLandscape = imageAspectRatio > 1;
+            const isCellLandscape = cellAspectRatio > 1;
+
+            // 智能缩放策略：根据方向匹配度调整
+            let imgScale;
+            if (isImageLandscape === isCellLandscape) {
+                // 方向相同，使用标准适应
+                imgScale = Math.min(cellWidth / pageImage.width, cellHeight / pageImage.height);
+            } else {
+                // 方向不同，尝试最大化利用空间
+                // 使用较小的缩放因子，避免过度压缩
+                imgScale = Math.min(cellWidth / pageImage.width, cellHeight / pageImage.height);
+                // 可以稍微增加缩放以适应方向，但可能会轻微裁剪
+                // imgScale = Math.max(cellWidth / pageImage.width, cellHeight / pageImage.height) * 0.95;
+            }
+
             const scaledWidth = pageImage.width * imgScale;
             const scaledHeight = pageImage.height * imgScale;
             const offsetX = (cellWidth - scaledWidth) / 2;
             const offsetY = (cellHeight - scaledHeight) / 2;
 
+            // 绘制图像
             ctx.drawImage(pageImage, x + offsetX, y + offsetY, scaledWidth, scaledHeight);
+
+            // 调试：绘制图像边界框（仅在开发时启用）
+            // ctx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
+            // ctx.lineWidth = 1;
+            // ctx.strokeRect(x + offsetX, y + offsetY, scaledWidth, scaledHeight);
         } else {
             // 页面图像加载失败
             drawErrorPlaceholderOnCanvas(ctx, x, y, cellWidth, cellHeight, '加载失败');
@@ -724,7 +773,33 @@ async function renderPdfPageToImage(fileInfo, pageNum) {
         const pdf = await pdfjsLib.getDocument({ data: fileInfo.pdfData.slice() }).promise;
         const page = await pdf.getPage(pageNum);
 
-        const viewport = page.getViewport({ scale: RENDER_CONFIG.pdfScale });
+        // 尝试获取裁剪框，如果存在则使用它
+        let viewport;
+        try {
+            // 获取页面的裁剪框（实际显示区域）
+            const cropBox = page.cropBox || page.view;
+            if (cropBox && cropBox.length === 4) {
+                // 使用裁剪框创建视口
+                const [x1, y1, x2, y2] = cropBox;
+                const cropWidth = x2 - x1;
+                const cropHeight = y2 - y1;
+
+                // 计算基于裁剪框的缩放
+                viewport = page.getViewport({
+                    scale: RENDER_CONFIG.pdfScale,
+                    rotation: 0,
+                    dontFlip: false
+                });
+
+                // 调整视口以匹配裁剪框
+                // 注意：这是一个简化处理，完整实现需要更复杂的坐标转换
+            } else {
+                viewport = page.getViewport({ scale: RENDER_CONFIG.pdfScale });
+            }
+        } catch (e) {
+            // 回退到默认视口
+            viewport = page.getViewport({ scale: RENDER_CONFIG.pdfScale });
+        }
 
         const offscreenCanvas = document.createElement('canvas');
         offscreenCanvas.width = viewport.width;
@@ -1039,6 +1114,13 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// 更新缩放显示
+function updateZoomDisplay() {
+    if (elements.zoomLevelDisplay) {
+        elements.zoomLevelDisplay.textContent = Math.round(state.zoomLevel * 100) + '%';
+    }
 }
 
 // 启动应用

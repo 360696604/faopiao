@@ -24,7 +24,7 @@ body {
 }
 
 .container {
-    max-width: 1000px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 40px 20px;
 }
@@ -285,8 +285,9 @@ header h1 {
 /* 设置面板 */
 .settings-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 2fr 1fr;
     gap: 30px;
+    align-items: start;
 }
 
 .setting-group {
@@ -295,12 +296,13 @@ header h1 {
     border-radius: 8px;
 }
 
-.setting-group h3 {
-    font-size: 15px;
-    font-weight: 500;
+.setting-group h2 {
+    font-size: 16px;
+    font-weight: 600;
     margin-bottom: 20px;
     padding-bottom: 12px;
     border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
 }
 
 .setting-item {
@@ -354,7 +356,7 @@ header h1 {
 
 /* 预览区域 */
 .preview-group {
-    grid-column: 1 / -1;
+    /* 现在只占左边一列 */
 }
 
 .preview-wrapper {
@@ -363,11 +365,40 @@ header h1 {
     gap: 12px;
 }
 
+/* 右侧设置列 */
+.settings-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.settings-column .setting-group {
+    margin-bottom: 0;
+}
+
 .preview-nav {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
+}
+
+.preview-nav-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border-color);
+    margin: 0 4px;
+}
+
+.preview-nav .btn-small {
+    min-width: 32px;
+}
+
+.zoom-level-info {
+    font-size: 14px;
+    color: var(--text-secondary);
+    min-width: 50px;
+    text-align: center;
 }
 
 .preview-page-info {
@@ -382,6 +413,14 @@ header h1 {
     border: 1px solid var(--border-color);
     border-radius: 4px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.btn-small svg {
+    flex-shrink: 0;
 }
 
 .btn-small:hover:not(:disabled) {
@@ -394,6 +433,18 @@ header h1 {
     cursor: not-allowed;
 }
 
+.btn-small.btn-primary {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+
+.btn-small.btn-primary:hover:not(:disabled) {
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
+    color: #fff;
+}
+
 .preview-container {
     display: flex;
     justify-content: center;
@@ -403,6 +454,7 @@ header h1 {
     border-radius: 6px;
     position: relative;
     overflow: auto;
+    min-height: 500px;
 }
 
 #preview-canvas {
@@ -541,6 +593,33 @@ footer {
 
     .preview-container {
         overflow-x: auto;
+    }
+
+    .preview-nav {
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .preview-nav .btn-small {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    .preview-nav-divider {
+        display: none;
+    }
+
+    .zoom-level-info {
+        min-width: 40px;
+    }
+
+    .settings-column {
+        gap: 15px;
+    }
+
+    .preview-container {
+        min-height: 400px;
     }
 }
 
