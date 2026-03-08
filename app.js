@@ -1,5 +1,31 @@
+// ============================================================================
+// 常量定义
+// ============================================================================
+
 // 初始化 PDF.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
+
+// A4 尺寸 (单位: 点, 72点=1英寸, A4=210mm x 297mm)
+const A4_WIDTH = 595;
+const A4_HEIGHT = 842;
+const MM_TO_PT = 2.83465;
+
+// 渲染配置
+const RENDER_CONFIG = {
+    pdfScale: 1.5,           // PDF 渲染缩放比例
+    pageNumberBottomMargin: 20,  // 页码距离底部的距离
+    borderColor: '#ccc',     // 边框颜色
+    borderWidth: 1,          // 边框宽度
+    cutLineColor: '#999',    // 裁剪线颜色
+    cutLineWidth: 0.5,       // 裁剪线宽度
+    cutLineDash: [4, 4],     // 裁剪线虚线样式
+    pageNumberColor: '#666', // 页码颜色
+    pageNumberSize: 12       // 页码字体大小
+};
+
+// ============================================================================
+// 状态管理
+// ============================================================================
 
 // 应用状态
 const state = {
@@ -18,11 +44,6 @@ const state = {
         showPageNumber: false
     }
 };
-
-// A4 尺寸 (单位: 点, 72点=1英寸, A4=210mm x 297mm)
-const A4_WIDTH = 595;
-const A4_HEIGHT = 842;
-const MM_TO_PT = 2.83465;
 
 // DOM 元素
 const elements = {
@@ -52,6 +73,166 @@ const panels = {
     step1: document.getElementById('step1-panel'),
     step2: document.getElementById('step2-panel')
 };
+
+// ============================================================================
+// 布局计算
+// ============================================================================
+
+// 统一的布局计算函数
+function calculateLayout(settings) {
+    const { rows, cols, margin, gap, orientation } = settings;
+    const isLandscape = orientation === 'landscape';
+    const pageWidth = isLandscape ? A4_HEIGHT : A4_WIDTH;
+    const pageHeight = isLandscape ? A4_WIDTH : A4_HEIGHT;
+
+    const marginPt = margin * MM_TO_PT;
+    const gapPt = gap * MM_TO_PT;
+
+    const contentWidth = pageWidth - marginPt * 2;
+    const contentHeight = pageHeight - marginPt * 2;
+    const cellWidth = (contentWidth - gapPt * (cols - 1)) / cols;
+    const cellHeight = (contentHeight - gapPt * (rows - 1)) / rows;
+    const perPage = rows * cols;
+
+    return {
+        pageWidth,
+        pageHeight,
+        marginPt,
+        gapPt,
+        contentWidth,
+        contentHeight,
+        cellWidth,
+        cellHeight,
+        perPage,
+        rows,
+        cols
+    };
+}
+
+// 计算单元格位置
+function calculateCellPosition(index, layout) {
+    const { marginPt, gapPt, cellWidth, cellHeight, cols } = layout;
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const x = marginPt + col * (cellWidth + gapPt);
+    const y = marginPt + row * (cellHeight + gapPt);
+
+    return { x, y, col, row };
+}
+
+// ============================================================================
+// 绘制辅助函数
+// ============================================================================
+
+// 在 Canvas 上绘制边框
+function drawBorderOnCanvas(ctx, x, y, width, height) {
+    ctx.strokeStyle = RENDER_CONFIG.borderColor;
+    ctx.lineWidth = RENDER_CONFIG.borderWidth;
+    ctx.setLineDash([]);
+    ctx.strokeRect(x, y, width, height);
+}
+
+// 在 Canvas 上绘制裁剪线
+function drawCutLinesOnCanvas(ctx, x, y, width, height) {
+    ctx.strokeStyle = RENDER_CONFIG.cutLineColor;
+    ctx.lineWidth = RENDER_CONFIG.cutLineWidth;
+    ctx.setLineDash(RENDER_CONFIG.cutLineDash);
+    ctx.strokeRect(x, y, width, height);
+    ctx.setLineDash([]);
+}
+
+// 在 Canvas 上绘制页码
+function drawPageNumberOnCanvas(ctx, pageWidth, pageHeight, currentPage, totalPages) {
+    ctx.fillStyle = RENDER_CONFIG.pageNumberColor;
+    ctx.font = `${RENDER_CONFIG.pageNumberSize}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(
+        `${currentPage} / ${totalPages}`,
+        pageWidth / 2,
+        pageHeight - RENDER_CONFIG.pageNumberBottomMargin
+    );
+}
+
+// 在 PDF 上绘制边框
+function drawBorderOnPdf(page, x, y, width, height, PDFLib) {
+    const { rgb } = PDFLib;
+    page.drawRectangle({
+        x: x,
+        y: y,
+        width: width,
+        height: height,
+        borderColor: rgb(0.8, 0.8, 0.8),
+        borderWidth: RENDER_CONFIG.borderWidth
+    });
+}
+
+// 在 PDF 上绘制裁剪线
+function drawCutLinesOnPdf(page, x, y, width, height, PDFLib) {
+    const { rgb } = PDFLib;
+    const dashOpts = {
+        thickness: RENDER_CONFIG.cutLineWidth,
+        color: rgb(0.6, 0.6, 0.6),
+        dashArray: RENDER_CONFIG.cutLineDash
+    };
+
+    // 顶部
+    page.drawLine({ start: { x, y: y + height }, end: { x: x + width, y: y + height }, ...dashOpts });
+    // 底部
+    page.drawLine({ start: { x, y }, end: { x: x + width, y }, ...dashOpts });
+    // 左侧
+    page.drawLine({ start: { x, y }, end: { x, y: y + height }, ...dashOpts });
+    // 右侧
+    page.drawLine({ start: { x: x + width, y }, end: { x: x + width, y: y + height }, ...dashOpts });
+}
+
+// 在 PDF 上绘制页码
+function drawPageNumberOnPdf(page, pageWidth, currentPage, totalPages, font, PDFLib) {
+    const { rgb } = PDFLib;
+    const pageNumText = `${currentPage} / ${totalPages}`;
+    const textWidth = font.widthOfTextAtSize(pageNumText, 10);
+
+    page.drawText(pageNumText, {
+        x: (pageWidth - textWidth) / 2,
+        y: RENDER_CONFIG.pageNumberBottomMargin,
+        size: 10,
+        font: font,
+        color: rgb(0.4, 0.4, 0.4)
+    });
+}
+
+// 在 Canvas 上绘制占位符
+function drawPlaceholderOnCanvas(ctx, x, y, width, height, index) {
+    ctx.fillStyle = '#f5f5f5';
+    ctx.fillRect(x, y, width, height);
+
+    ctx.strokeStyle = '#d9d9d9';
+    ctx.setLineDash([5, 5]);
+    ctx.strokeRect(x, y, width, height);
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#999';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`发票 ${index + 1}`, x + width / 2, y + height / 2);
+}
+
+// 在 Canvas 上绘制错误占位符
+function drawErrorPlaceholderOnCanvas(ctx, x, y, width, height, message) {
+    ctx.fillStyle = '#ffebee';
+    ctx.fillRect(x, y, width, height);
+
+    ctx.fillStyle = '#f44336';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(message, x + width / 2, y + height / 2);
+}
+
+// ============================================================================
+// 初始化和事件监听
+// ============================================================================
 
 // 初始化
 function init() {
@@ -135,6 +316,10 @@ function setupEventListeners() {
         }
     });
 }
+
+// ============================================================================
+// 文件处理
+// ============================================================================
 
 // 处理文件选择
 function handleFileSelect(e) {
@@ -348,192 +533,148 @@ function clearAllFiles() {
 
 // 更新预览
 function updatePreview() {
-    const { rows, cols } = state.settings;
-    const perPage = rows * cols;
+    const layout = calculateLayout(state.settings);
     const totalInvoices = getTotalPages();
-    const totalPagesNeeded = Math.ceil(totalInvoices / perPage) || 1;
+    const totalPagesNeeded = Math.ceil(totalInvoices / layout.perPage) || 1;
 
-    elements.perPageCount.textContent = perPage;
+    elements.perPageCount.textContent = layout.perPage;
     elements.totalPages.textContent = totalPagesNeeded;
 
     // 重置预览页码
     state.currentPreviewPage = 0;
     state.previewCache.clear();
-    
+
     // 渲染预览
     renderPreviewPage();
 }
 
 // 获取预览总页数
 function getTotalPreviewPages() {
-    const { rows, cols } = state.settings;
-    const perPage = rows * cols;
+    const layout = calculateLayout(state.settings);
     const totalInvoices = getTotalPages();
-    return Math.ceil(totalInvoices / perPage) || 1;
+    return Math.ceil(totalInvoices / layout.perPage) || 1;
 }
+
+// 渲染预览页面
+// ============================================================================
+// 预览渲染
+// ============================================================================
 
 // 渲染预览页面
 async function renderPreviewPage() {
     const canvas = elements.previewCanvas;
     const ctx = canvas.getContext('2d');
-    const { rows, cols, margin, gap, orientation, showBorder, showCutLine, showPageNumber } = state.settings;
-    
-    const isLandscape = orientation === 'landscape';
-    const pageWidth = isLandscape ? A4_HEIGHT : A4_WIDTH;
-    const pageHeight = isLandscape ? A4_WIDTH : A4_HEIGHT;
-    
-    // 获取设备像素比以提高分辨率
+    const { showBorder, showCutLine, showPageNumber } = state.settings;
+
+    const layout = calculateLayout(state.settings);
+    const { pageWidth, pageHeight, cellWidth, cellHeight, perPage } = layout;
+
+    // 设置 Canvas 分辨率
     const dpr = window.devicePixelRatio || 1;
-    
-    // 设置Canvas内部分辨率（高分辨率）
     canvas.width = pageWidth * dpr;
     canvas.height = pageHeight * dpr;
-    
-    // 设置Canvas显示大小（CSS像素）
     canvas.style.width = pageWidth + 'px';
     canvas.style.height = pageHeight + 'px';
-    
-    // 缩放上下文以适应高分辨率
     ctx.scale(dpr, dpr);
-    
+
     // 白色背景
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, pageWidth, pageHeight);
-    
-    const marginPt = margin * MM_TO_PT;
-    const gapPt = gap * MM_TO_PT;
-    
-    const contentWidth = pageWidth - marginPt * 2;
-    const contentHeight = pageHeight - marginPt * 2;
-    const cellWidth = (contentWidth - gapPt * (cols - 1)) / cols;
-    const cellHeight = (contentHeight - gapPt * (rows - 1)) / rows;
-    
-    const perPage = rows * cols;
+
     const allPages = getAllPages();
     const totalPagesNeeded = getTotalPreviewPages();
-    
+
     // 更新导航按钮状态
-    elements.prevPreviewPage.disabled = state.currentPreviewPage <= 0;
-    elements.nextPreviewPage.disabled = state.currentPreviewPage >= totalPagesNeeded - 1;
-    elements.currentPreviewPage.textContent = state.currentPreviewPage + 1;
-    elements.totalPreviewPages.textContent = totalPagesNeeded;
-    
+    updatePreviewNavigation(totalPagesNeeded);
+
+    // 没有文件时显示占位符
     if (allPages.length === 0) {
-        // 没有文件时显示占位符
-        ctx.fillStyle = '#f5f5f5';
-        ctx.strokeStyle = '#d9d9d9';
-        ctx.setLineDash([5, 5]);
-        
-        for (let i = 0; i < perPage; i++) {
-            const col = i % cols;
-            const row = Math.floor(i / cols);
-            const x = marginPt + col * (cellWidth + gapPt);
-            const y = marginPt + row * (cellHeight + gapPt);
-            
-            ctx.fillRect(x, y, cellWidth, cellHeight);
-            ctx.strokeRect(x, y, cellWidth, cellHeight);
-            
-            // 显示占位文字
-            ctx.fillStyle = '#999';
-            ctx.font = '14px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(`发票 ${i + 1}`, x + cellWidth / 2, y + cellHeight / 2);
-            ctx.fillStyle = '#f5f5f5';
-        }
-        ctx.setLineDash([]);
+        renderEmptyPlaceholders(ctx, layout);
         return;
     }
-    
+
     // 显示加载状态
     elements.previewLoading.style.display = 'flex';
 
     try {
-        // 先预加载所有页面图像
-        const pageImages = [];
+        // 预加载当前页所有图像
+        const pageImages = await loadPageImages(allPages, perPage);
+
+        // 绘制所有发票
         for (let i = 0; i < perPage; i++) {
             const invoiceIndex = state.currentPreviewPage * perPage + i;
             if (invoiceIndex >= allPages.length) break;
 
-            const { fileInfo, page } = allPages[invoiceIndex];
-            const pageImage = await getPageImage(fileInfo, page);
-            pageImages.push(pageImage);
-        }
-
-        // 所有图像加载完成后，开始绘制
-        for (let i = 0; i < perPage; i++) {
-            const invoiceIndex = state.currentPreviewPage * perPage + i;
-            if (invoiceIndex >= allPages.length) break;
-
+            const { x, y } = calculateCellPosition(i, layout);
             const pageImage = pageImages[i];
 
-            const col = i % cols;
-            const row = Math.floor(i / cols);
-            const x = marginPt + col * (cellWidth + gapPt);
-            const y = marginPt + row * (cellHeight + gapPt);
+            // 绘制发票图像
+            drawInvoiceImageOnCanvas(ctx, pageImage, x, y, cellWidth, cellHeight);
 
-            try {
-                if (pageImage) {
-                    // 计算缩放和居中
-                    const imgScale = Math.min(cellWidth / pageImage.width, cellHeight / pageImage.height);
-                    const scaledWidth = pageImage.width * imgScale;
-                    const scaledHeight = pageImage.height * imgScale;
-                    const offsetX = (cellWidth - scaledWidth) / 2;
-                    const offsetY = (cellHeight - scaledHeight) / 2;
-
-                    // Canvas drawImage: (image, dx, dy, dWidth, dHeight)
-                    // dx, dy 是目标矩形的左上角坐标
-                    ctx.drawImage(pageImage, x + offsetX, y + offsetY, scaledWidth, scaledHeight);
-                } else {
-                    // 页面图像加载失败
-                    ctx.fillStyle = '#fff3cd';
-                    ctx.fillRect(x, y, cellWidth, cellHeight);
-                    ctx.fillStyle = '#856404';
-                    ctx.font = '12px sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText('加载失败', x + cellWidth / 2, y + cellHeight / 2);
-                }
-            } catch (err) {
-                console.error('绘制页面失败:', err);
-                // 显示错误占位符
-                ctx.fillStyle = '#ffebee';
-                ctx.fillRect(x, y, cellWidth, cellHeight);
-                ctx.fillStyle = '#f44336';
-                ctx.font = '12px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('绘制失败', x + cellWidth / 2, y + cellHeight / 2);
-            }
-
-            // 绘制边框
-            if (showBorder) {
-                ctx.strokeStyle = '#ccc';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([]);
-                ctx.strokeRect(x, y, cellWidth, cellHeight);
-            }
-
-            // 绘制裁剪虚线
-            if (showCutLine) {
-                ctx.strokeStyle = '#999';
-                ctx.lineWidth = 0.5;
-                ctx.setLineDash([4, 4]);
-                ctx.strokeRect(x, y, cellWidth, cellHeight);
-                ctx.setLineDash([]);
-            }
+            // 绘制边框和裁剪线
+            if (showBorder) drawBorderOnCanvas(ctx, x, y, cellWidth, cellHeight);
+            if (showCutLine) drawCutLinesOnCanvas(ctx, x, y, cellWidth, cellHeight);
         }
 
         // 绘制页码
         if (showPageNumber) {
-            ctx.fillStyle = '#666';
-            ctx.font = '12px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'bottom';
-            ctx.fillText(`${state.currentPreviewPage + 1} / ${totalPagesNeeded}`, pageWidth / 2, pageHeight - 10);
+            drawPageNumberOnCanvas(ctx, pageWidth, pageHeight, state.currentPreviewPage + 1, totalPagesNeeded);
         }
     } finally {
         elements.previewLoading.style.display = 'none';
+    }
+}
+
+// 更新预览导航按钮状态
+function updatePreviewNavigation(totalPages) {
+    elements.prevPreviewPage.disabled = state.currentPreviewPage <= 0;
+    elements.nextPreviewPage.disabled = state.currentPreviewPage >= totalPages - 1;
+    elements.currentPreviewPage.textContent = state.currentPreviewPage + 1;
+    elements.totalPreviewPages.textContent = totalPages;
+}
+
+// 渲染空占位符
+function renderEmptyPlaceholders(ctx, layout) {
+    const { perPage } = layout;
+    for (let i = 0; i < perPage; i++) {
+        const { x, y } = calculateCellPosition(i, layout);
+        drawPlaceholderOnCanvas(ctx, x, y, layout.cellWidth, layout.cellHeight, i);
+    }
+}
+
+// 加载当前页的所有图像
+async function loadPageImages(allPages, perPage) {
+    const pageImages = [];
+    for (let i = 0; i < perPage; i++) {
+        const invoiceIndex = state.currentPreviewPage * perPage + i;
+        if (invoiceIndex >= allPages.length) break;
+
+        const { fileInfo, page } = allPages[invoiceIndex];
+        const pageImage = await getPageImage(fileInfo, page);
+        pageImages.push(pageImage);
+    }
+    return pageImages;
+}
+
+// 在 Canvas 上绘制发票图像
+function drawInvoiceImageOnCanvas(ctx, pageImage, x, y, cellWidth, cellHeight) {
+    try {
+        if (pageImage) {
+            // 计算缩放和居中
+            const imgScale = Math.min(cellWidth / pageImage.width, cellHeight / pageImage.height);
+            const scaledWidth = pageImage.width * imgScale;
+            const scaledHeight = pageImage.height * imgScale;
+            const offsetX = (cellWidth - scaledWidth) / 2;
+            const offsetY = (cellHeight - scaledHeight) / 2;
+
+            ctx.drawImage(pageImage, x + offsetX, y + offsetY, scaledWidth, scaledHeight);
+        } else {
+            // 页面图像加载失败
+            drawErrorPlaceholderOnCanvas(ctx, x, y, cellWidth, cellHeight, '加载失败');
+        }
+    } catch (err) {
+        console.error('绘制页面失败:', err);
+        drawErrorPlaceholderOnCanvas(ctx, x, y, cellWidth, cellHeight, '绘制失败');
     }
 }
 
@@ -583,7 +724,7 @@ async function renderPdfPageToImage(fileInfo, pageNum) {
         const pdf = await pdfjsLib.getDocument({ data: fileInfo.pdfData.slice() }).promise;
         const page = await pdf.getPage(pageNum);
 
-        const viewport = page.getViewport({ scale: 1.5 });
+        const viewport = page.getViewport({ scale: RENDER_CONFIG.pdfScale });
 
         const offscreenCanvas = document.createElement('canvas');
         offscreenCanvas.width = viewport.width;
@@ -701,152 +842,113 @@ async function mergeAndDownload() {
 }
 
 // 合并 PDF
+// ============================================================================
+// PDF 合并
+// ============================================================================
+
+// 合并 PDF
 async function mergePDFs() {
-    const { PDFDocument, rgb, StandardFonts } = PDFLib;
-    const { rows, cols, margin, gap, orientation, showBorder, showCutLine, showPageNumber } = state.settings;
-    
-    const isLandscape = orientation === 'landscape';
-    const pageWidth = isLandscape ? A4_HEIGHT : A4_WIDTH;
-    const pageHeight = isLandscape ? A4_WIDTH : A4_HEIGHT;
-    
-    const marginPt = margin * MM_TO_PT;
-    const gapPt = gap * MM_TO_PT;
-    
-    // 计算每个发票的可用空间
-    const contentWidth = pageWidth - marginPt * 2;
-    const contentHeight = pageHeight - marginPt * 2;
-    const cellWidth = (contentWidth - gapPt * (cols - 1)) / cols;
-    const cellHeight = (contentHeight - gapPt * (rows - 1)) / rows;
-    
-    const perPage = rows * cols;
-    const allPages = [];
-    
-    // 收集所有页面
-    for (const fileInfo of state.files) {
-        for (const page of fileInfo.pages) {
-            allPages.push({ fileInfo, page });
-        }
-    }
-    
+    const { PDFDocument, StandardFonts } = PDFLib;
+    const { showBorder, showCutLine, showPageNumber } = state.settings;
+
+    const layout = calculateLayout(state.settings);
+    const { pageWidth, pageHeight, cellWidth, cellHeight, perPage } = layout;
+
+    const allPages = getAllPages();
     const totalPagesNeeded = Math.ceil(allPages.length / perPage);
-    
+
     // 创建新的 PDF 文档
     const mergedPdf = await PDFDocument.create();
     const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
-    
+
     let processed = 0;
-    
+
     for (let pageIndex = 0; pageIndex < totalPagesNeeded; pageIndex++) {
         const newPage = mergedPdf.addPage([pageWidth, pageHeight]);
-        
+
         for (let i = 0; i < perPage; i++) {
             const invoiceIndex = pageIndex * perPage + i;
             if (invoiceIndex >= allPages.length) break;
-            
+
             const { fileInfo, page } = allPages[invoiceIndex];
-            
-            // 计算位置 (从左上角开始)
-            const col = i % cols;
-            const row = Math.floor(i / cols);
-            const x = marginPt + col * (cellWidth + gapPt);
-            const y = pageHeight - marginPt - (row + 1) * cellHeight - row * gapPt;
-            
+
+            // 计算位置 (PDF 坐标系：左下角为原点)
+            const { x, y: canvasY } = calculateCellPosition(i, layout);
+            const y = pageHeight - layout.marginPt - (Math.floor(i / layout.cols) + 1) * cellHeight - Math.floor(i / layout.cols) * layout.gapPt;
+
             try {
-                if (page.type === 'pdf') {
-                    // 嵌入 PDF 页面 - 使用 slice() 创建副本，忽略加密
-                    const srcPdf = await PDFDocument.load(fileInfo.pdfData.slice(), {
-                        ignoreEncryption: true
-                    });
-                    const [embeddedPage] = await mergedPdf.embedPdf(srcPdf, [page.pageNum - 1]);
-
-                    const dims = embeddedPage.scale(1);
-                    const scale = Math.min(cellWidth / dims.width, cellHeight / dims.height);
-                    const scaledWidth = dims.width * scale;
-                    const scaledHeight = dims.height * scale;
-
-                    // 居中
-                    const offsetX = (cellWidth - scaledWidth) / 2;
-                    const offsetY = (cellHeight - scaledHeight) / 2;
-
-                    newPage.drawPage(embeddedPage, {
-                        x: x + offsetX,
-                        y: y + offsetY,
-                        xScale: scale,
-                        yScale: scale
-                    });
-                } else if (page.type === 'ofd-image') {
-                    // 嵌入图片
-                    const imageBytes = await fetch(page.imageData).then(r => r.arrayBuffer());
-                    let image;
-                    if (page.imageData.includes('image/png')) {
-                        image = await mergedPdf.embedPng(imageBytes);
-                    } else {
-                        image = await mergedPdf.embedJpg(imageBytes);
-                    }
-                    
-                    const scale = Math.min(cellWidth / image.width, cellHeight / image.height);
-                    const scaledWidth = image.width * scale;
-                    const scaledHeight = image.height * scale;
-                    
-                    const offsetX = (cellWidth - scaledWidth) / 2;
-                    const offsetY = (cellHeight - scaledHeight) / 2;
-                    
-                    newPage.drawImage(image, {
-                        x: x + offsetX,
-                        y: y + offsetY,
-                        width: scaledWidth,
-                        height: scaledHeight
-                    });
-                }
+                // 嵌入发票内容
+                await embedInvoiceInPdf(newPage, fileInfo, page, x, y, cellWidth, cellHeight, mergedPdf, PDFDocument);
             } catch (err) {
                 console.error('处理页面失败:', err);
             }
-            
-            // 绘制边框
-            if (showBorder) {
-                newPage.drawRectangle({
-                    x: x,
-                    y: y,
-                    width: cellWidth,
-                    height: cellHeight,
-                    borderColor: rgb(0.8, 0.8, 0.8),
-                    borderWidth: 0.5
-                });
-            }
-            
-            // 绘制裁剪虚线
-            if (showCutLine) {
-                const dashOpts = { thickness: 0.5, color: rgb(0.6, 0.6, 0.6), dashArray: [4, 4] };
-                // 顶部
-                newPage.drawLine({ start: { x: x, y: y + cellHeight }, end: { x: x + cellWidth, y: y + cellHeight }, ...dashOpts });
-                // 底部
-                newPage.drawLine({ start: { x: x, y: y }, end: { x: x + cellWidth, y: y }, ...dashOpts });
-                // 左侧
-                newPage.drawLine({ start: { x: x, y: y }, end: { x: x, y: y + cellHeight }, ...dashOpts });
-                // 右侧
-                newPage.drawLine({ start: { x: x + cellWidth, y: y }, end: { x: x + cellWidth, y: y + cellHeight }, ...dashOpts });
-            }
-            
+
+            // 绘制边框和裁剪线
+            if (showBorder) drawBorderOnPdf(newPage, x, y, cellWidth, cellHeight, PDFLib);
+            if (showCutLine) drawCutLinesOnPdf(newPage, x, y, cellWidth, cellHeight, PDFLib);
+
             processed++;
             updateProgress(processed / allPages.length * 100);
         }
-        
+
         // 绘制页码
         if (showPageNumber) {
-            const pageNumText = `${pageIndex + 1} / ${totalPagesNeeded}`;
-            const textWidth = font.widthOfTextAtSize(pageNumText, 10);
-            newPage.drawText(pageNumText, {
-                x: (pageWidth - textWidth) / 2,
-                y: 20,
-                size: 10,
-                font: font,
-                color: rgb(0.5, 0.5, 0.5)
-            });
+            drawPageNumberOnPdf(newPage, pageWidth, pageIndex + 1, totalPagesNeeded, font, PDFLib);
         }
     }
-    
+
     // 保存合并后的 PDF
     state.mergedPdfBytes = await mergedPdf.save();
+}
+
+// 在 PDF 中嵌入发票内容
+async function embedInvoiceInPdf(page, fileInfo, invoicePage, x, y, cellWidth, cellHeight, mergedPdf, PDFDocument) {
+    if (invoicePage.type === 'pdf') {
+        // 嵌入 PDF 页面
+        const srcPdf = await PDFDocument.load(fileInfo.pdfData.slice(), {
+            ignoreEncryption: true
+        });
+        const [embeddedPage] = await mergedPdf.embedPdf(srcPdf, [invoicePage.pageNum - 1]);
+
+        const dims = embeddedPage.scale(1);
+        const scale = Math.min(cellWidth / dims.width, cellHeight / dims.height);
+        const scaledWidth = dims.width * scale;
+        const scaledHeight = dims.height * scale;
+
+        // 居中
+        const offsetX = (cellWidth - scaledWidth) / 2;
+        const offsetY = (cellHeight - scaledHeight) / 2;
+
+        page.drawPage(embeddedPage, {
+            x: x + offsetX,
+            y: y + offsetY,
+            xScale: scale,
+            yScale: scale
+        });
+    } else if (invoicePage.type === 'ofd-image') {
+        // 嵌入图片
+        const imageBytes = await fetch(invoicePage.imageData).then(r => r.arrayBuffer());
+        let image;
+        if (invoicePage.imageData.includes('image/png')) {
+            image = await mergedPdf.embedPng(imageBytes);
+        } else {
+            image = await mergedPdf.embedJpg(imageBytes);
+        }
+
+        const scale = Math.min(cellWidth / image.width, cellHeight / image.height);
+        const scaledWidth = image.width * scale;
+        const scaledHeight = image.height * scale;
+
+        const offsetX = (cellWidth - scaledWidth) / 2;
+        const offsetY = (cellHeight - scaledHeight) / 2;
+
+        page.drawImage(image, {
+            x: x + offsetX,
+            y: y + offsetY,
+            width: scaledWidth,
+            height: scaledHeight
+        });
+    }
 }
 
 // 更新进度
@@ -919,6 +1021,10 @@ async function printCurrentPage() {
 
 // 下载合并后的 PDF
 // 工具函数
+// ============================================================================
+// 工具函数
+// ============================================================================
+
 function formatFileSize(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
